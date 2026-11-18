@@ -1,0 +1,14 @@
+{
+  "properties": [
+    {
+      "name": "roles.service.url",
+      "type": "java.lang.String",
+      "description": "Direccion base del servicio de roles."
+    },
+    {
+      "name": "app.avatares.carpeta",
+      "type": "java.lang.String",
+      "description": "Carpeta donde se guardan las fotos de perfil."
+    }
+  ]
+}
