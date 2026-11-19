@@ -1,27 +1,77 @@
 # Seguros BPO — Microservicios
 
-Cuatro microservicios Spring Boot 4.1 (JDK 21) sobre **MongoDB Atlas**, que dan servicio a la app Android Seguros BPO.
+Arquitectura de microservicios con Spring Boot 4.1 (JDK 21) sobre **MongoDB Atlas**, con
+**Eureka** para el descubrimiento de servicios y un **API Gateway** como puerta de entrada única.
+Da servicio a la app Android Seguros BPO.
 
-| Servicio | Puerto | Base de datos | Responsabilidad |
-|---|---|---|---|
-| `roles-service` | 8081 | `segurosbpo_roles` | Catálogo de roles: Asegurado, Liquidador, Analista |
-| `usuarios-service` | 8082 | `segurosbpo_usuarios` | Usuarios, login, contraseña y avatar. Consulta a `roles-service` |
-| `catalogos-service` | 8083 | `segurosbpo_catalogos` | Compañías de seguros y tipos de siniestro |
-| `siniestros-service` | 8084 | `segurosbpo_siniestros` | Casos y gestiones. Consulta a `catalogos-service` y a `usuarios-service` |
-
-Cada servicio tiene su propia base de datos. Cuando uno necesita un dato de otro se lo pide por HTTP
-con **WebClient**: `siniestros` guarda solo el `companiaCodigo` y el `liquidadorId`, y pregunta por
-el nombre cuando arma la respuesta.
+| Proyecto | Puerto | Se registra como | Base de datos | Responsabilidad |
+|---|---|---|---|---|
+| `eurekaserver` | 8761 | — | — | Registro donde los demás se anuncian |
+| `apigateway` | 6464 | `api-gateway` | — | Reparte las peticiones al servicio que corresponde |
+| `ms_rol` | 8081 | `roles` | `segurosbpo_roles` | Roles: Asegurado, Liquidador, Analista |
+| `ms_usuario` | 8082 | `usuarios` | `segurosbpo_usuarios` | Usuarios, login, contraseña, avatar y recuperación |
+| `ms_catalogo` | 8083 | `catalogos` | `segurosbpo_catalogos` | Compañías, tipos de siniestro, regiones y comunas |
+| `ms_siniestro` | 8084 | `siniestros` | `segurosbpo_siniestros` | Casos, gestiones, evidencias, avisos, solicitudes y consultas |
 
 ```
-   roles-service (8081)
-          ^
-          | WebClient
-   usuarios-service (8082) <----+
-                                | WebClient
-   catalogos-service (8083) <---+--- siniestros-service (8084)
-                                      WebClient
+                        app Android
+                             |
+                             v
+                   api-gateway  (6464)
+                             |
+        +----------+---------+---------+-----------+
+        v          v                   v           v
+     roles     usuarios            catalogos   siniestros
+     (8081)     (8082)              (8083)       (8084)
+        ^          |                   ^           |
+        +----------+                   +-----------+
+         WebClient                      WebClient
+
+              todos se registran en eureka-server (8761)
 ```
+
+La app habla **solo con el gateway**. El gateway no sabe en qué puerto vive cada servicio: le pide la
+dirección a Eureka por su nombre (`lb://siniestros`), así que si un puerto cambia no hay que tocar nada.
+
+Entre servicios pasa lo mismo: `siniestros` pide `http://catalogos` y el balanceador resuelve la
+dirección real. Cada servicio tiene su propia base de datos y solo guarda referencias —
+`companiaCodigo`, `liquidadorId` — y pregunta por el nombre cuando arma la respuesta.
+
+## Cómo levantarlo
+
+El orden importa, porque los servicios buscan a Eureka al arrancar:
+
+1. `eurekaserver` — esperar a que diga *Started Eureka Server*
+2. `ms_rol`, `ms_usuario`, `ms_catalogo`, `ms_siniestro` — en cualquier orden
+3. `apigateway`
+
+En `http://localhost:8761` se ve la tabla con todos los registrados.
+
+Con Docker es de una sola vez, y el orden lo resuelve `depends_on`:
+
+```
+docker compose up --build
+```
+
+Cada proyecto trae el wrapper de Maven, así que no hace falta tener Maven instalado:
+
+```
+./mvnw test
+./mvnw spring-boot:run
+```
+
+### Sobre la versión de Spring Cloud
+
+Spring Boot 4.1 todavía no tiene un tren de Spring Cloud publicado: el de 2025 pide Boot 4.0.x y el
+de 2026 pide 4.2.x. Por eso los `application.properties` llevan esta línea:
+
+```properties
+spring.cloud.compatibility-verifier.enabled=false
+```
+
+Desactiva la comprobación que impide arrancar con una combinación no declarada. Lo que usamos
+—registro, balanceo y enrutado— es estable, pero conviene saber que es una combinación que Spring
+no certifica. La alternativa sería bajar a Spring Boot 4.0.6.
 
 ## Conexión a MongoDB
 
@@ -105,10 +155,10 @@ revisar **Settings → Build, Execution, Deployment → Compiler → Annotation 
 1. Definir `MONGO_URI` (ver arriba) y tener la IP autorizada en Atlas.
 2. Levantar en este orden, porque unos consultan a otros:
 
-   1. `roles-service` (`RolesServiceApplication`)
-   2. `usuarios-service` (`UsuariosServiceApplication`)
-   3. `catalogos-service` (`CatalogosServiceApplication`)
-   4. `siniestros-service` (`SiniestrosServiceApplication`)
+   1. `ms_rol` (`RolesServiceApplication`)
+   2. `ms_usuario` (`UsuariosServiceApplication`)
+   3. `ms_catalogo` (`CatalogosServiceApplication`)
+   4. `ms_siniestro` (`SiniestrosServiceApplication`)
 
 Las bases y colecciones se crean solas. La primera vez que cada servicio encuentra su colección vacía
 carga los datos del caso:
@@ -247,8 +297,8 @@ La respuesta de un siniestro trae los nombres resueltos desde los otros servicio
 
 ## Archivos subidos
 
-- Las fotos de perfil se guardan en `uploads/avatares` dentro de `usuarios-service`, y las evidencias
-  de los casos en `uploads/evidencias` dentro de `siniestros-service`. Las carpetas se crean solas y
+- Las fotos de perfil se guardan en `uploads/avatares` dentro de `ms_usuario`, y las evidencias
+  de los casos en `uploads/evidencias` dentro de `ms_siniestro`. Las carpetas se crean solas y
   están ignoradas por Git.
 - En Mongo queda solo el **nombre** del archivo, no el archivo mismo.
 - Cada foto de perfil nueva recibe un nombre único (UUID) y la anterior se borra, así la app nunca
@@ -269,7 +319,7 @@ Ejemplo para probar en Postman — crear cuenta (`POST http://localhost:8082/api
 ```
 
 Si un servicio consultado está apagado, la respuesta es **503** indicando cuál falta:
-`usuarios-service` lo dice del de roles, y `siniestros-service` del de catálogos o usuarios.
+`ms_usuario` lo dice del de roles, y `ms_siniestro` del de catálogos o usuarios.
 
 ## Desde la app Android
 

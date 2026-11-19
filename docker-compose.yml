@@ -1,0 +1,84 @@
+services:
+
+  eureka-server:
+    build: ./eurekaserver
+    container_name: eureka-server
+    ports:
+      - "8761:8761"
+    networks:
+      - seguros-net
+
+  ms-roles:
+    build: ./ms_rol
+    container_name: ms-roles
+    ports:
+      - "8081:8081"
+    environment:
+      MONGO_URI: ${MONGO_URI}
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+    depends_on:
+      - eureka-server
+    networks:
+      - seguros-net
+
+  ms-usuarios:
+    build: ./ms_usuario
+    container_name: ms-usuarios
+    ports:
+      - "8082:8082"
+    environment:
+      MONGO_URI: ${MONGO_URI}
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+    depends_on:
+      - eureka-server
+      - ms-roles
+    networks:
+      - seguros-net
+
+  ms-catalogos:
+    build: ./ms_catalogo
+    container_name: ms-catalogos
+    ports:
+      - "8083:8083"
+    environment:
+      MONGO_URI: ${MONGO_URI}
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+    depends_on:
+      - eureka-server
+    networks:
+      - seguros-net
+
+  ms-siniestros:
+    build: ./ms_siniestro
+    container_name: ms-siniestros
+    ports:
+      - "8084:8084"
+    environment:
+      MONGO_URI: ${MONGO_URI}
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+    depends_on:
+      - eureka-server
+      - ms-catalogos
+      - ms-usuarios
+    networks:
+      - seguros-net
+
+  api-gateway:
+    build: ./apigateway
+    container_name: api-gateway
+    ports:
+      - "6464:6464"
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+    depends_on:
+      - eureka-server
+      - ms-roles
+      - ms-usuarios
+      - ms-catalogos
+      - ms-siniestros
+    networks:
+      - seguros-net
+
+networks:
+  seguros-net:
+    driver: bridge
