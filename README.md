@@ -32,18 +32,39 @@ La cadena de conexión no está en el código. Cada servicio la arma desde la va
 spring.mongodb.uri=${MONGO_URI}/segurosbpo_roles
 ```
 
-Antes de levantar nada hay que definir esa variable. En `.env.example` está el formato;
-copia ese archivo como `.env` para tenerlo a mano (`.env` está ignorado por Git y **no se sube**).
+El valor sale del archivo `.env` que está en la raíz del repositorio. Copia `.env.example` como
+`.env` y escribe ahí tu cadena (`.env` está ignorado por Git y **no se sube**):
 
-Ojo: Spring Boot **no lee el archivo `.env` por su cuenta**. Hay que entregarle la variable al proceso.
-La forma más cómoda en Windows es dejarla fija una vez, desde PowerShell:
-
-```powershell
-setx MONGO_URI "mongodb+srv://USUARIO:CLAVE@TU_CLUSTER.mongodb.net"
+```
+MONGO_URI=mongodb+srv://USUARIO:CLAVE@TU_CLUSTER.mongodb.net
 ```
 
-Después hay que **cerrar y volver a abrir IntelliJ** para que tome la variable. Si falta, el servicio
-no parte y el error dice `Could not resolve placeholder 'MONGO_URI'`.
+Cada servicio lo lee gracias a esta línea, al inicio de su `application.properties`:
+
+```properties
+spring.config.import=optional:file:../.env[.properties],optional:file:./.env[.properties]
+```
+
+- `optional:` — si el archivo no existe, el servicio igual intenta arrancar.
+- `[.properties]` — le indica a Spring que lo lea como archivo de propiedades, porque por sí solo
+  no reconoce la extensión `.env`.
+- Las dos rutas — `../.env` sirve al correr desde la carpeta del servicio y `./.env` desde la raíz.
+
+Si falta el valor, el servicio no parte y el error dice `Could not resolve placeholder 'MONGO_URI'`.
+
+**Cuidado con una variable de entorno con el mismo nombre.** En Spring las variables de entorno tienen
+más prioridad que este archivo, así que si alguna vez definiste `MONGO_URI` en el sistema con una clave
+vieja, esa gana y vas a ver `bad auth : authentication failed` aunque el `.env` esté correcto.
+Para revisarla y borrarla, en PowerShell:
+
+```powershell
+[Environment]::GetEnvironmentVariable("MONGO_URI", "User")
+[Environment]::SetEnvironmentVariable("MONGO_URI", $null, "User")
+```
+
+Si la contraseña trae símbolos hay que escribirlos codificados dentro de la URI: `@` es `%40`,
+`:` es `%3A`, `/` es `%2F`, `#` es `%23` y `%` es `%25`. Lo más simple es usar una clave solo con
+letras y números.
 
 En MongoDB Atlas también hay que tener la IP del computador en la lista blanca
 (**Network Access → Add IP Address**), o la conexión falla con un error de TLS.
