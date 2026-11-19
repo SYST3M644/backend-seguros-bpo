@@ -6,6 +6,8 @@ public record RegistroRequest(
         String contrasena,
         String rut,
         String equipo,
-        String rolId
+        String rolId,
+        String pregunta,
+        String respuesta
 ) {
 }

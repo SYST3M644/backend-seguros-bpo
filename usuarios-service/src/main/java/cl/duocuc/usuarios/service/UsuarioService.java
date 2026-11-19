@@ -4,6 +4,8 @@ import cl.duocuc.usuarios.client.RolClient;
 import cl.duocuc.usuarios.dto.ActualizarUsuarioRequest;
 import cl.duocuc.usuarios.dto.CambiarContrasenaRequest;
 import cl.duocuc.usuarios.dto.LoginRequest;
+import cl.duocuc.usuarios.dto.PreguntaResponse;
+import cl.duocuc.usuarios.dto.RecuperarRequest;
 import cl.duocuc.usuarios.dto.RegistroRequest;
 import cl.duocuc.usuarios.dto.RolDto;
 import cl.duocuc.usuarios.dto.UsuarioResponse;
@@ -68,7 +70,41 @@ public class UsuarioService {
         nuevo.setRut(datos.rut() == null ? "" : datos.rut().trim());
         nuevo.setEquipo(datos.equipo());
         nuevo.setRolId(rolId);
+        nuevo.setPregunta(texto(datos.pregunta()));
+        nuevo.setRespuesta(normalizar(datos.respuesta()));
         return aRespuesta(usuarioRepository.save(nuevo));
+    }
+
+    public PreguntaResponse preguntaDe(String correo) {
+        Usuario usuario = usuarioRepository.findByCorreo(texto(correo))
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "No hay una cuenta con ese correo"));
+        if (vacio(usuario.getPregunta())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND,
+                    "Esta cuenta no tiene pregunta de recuperación");
+        }
+        return new PreguntaResponse(usuario.getCorreo(), usuario.getPregunta());
+    }
+
+    public void recuperar(RecuperarRequest datos) {
+        if (datos.nueva() == null || datos.nueva().length() < 6) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "La contraseña debe tener mínimo 6 caracteres");
+        }
+        Usuario usuario = usuarioRepository.findByCorreo(texto(datos.correo()))
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "No hay una cuenta con ese correo"));
+        if (vacio(usuario.getRespuesta())
+                || !usuario.getRespuesta().equals(normalizar(datos.respuesta()))) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,
+                    "La respuesta no coincide");
+        }
+        usuario.setContrasena(datos.nueva());
+        usuarioRepository.save(usuario);
+    }
+
+    private String normalizar(String valor) {
+        return texto(valor).toLowerCase();
     }
 
     public UsuarioResponse iniciarSesion(LoginRequest datos) {
@@ -175,6 +211,10 @@ public class UsuarioService {
                 .path("/api/usuarios/" + usuario.getId() + "/avatar")
                 .queryParam("v", usuario.getAvatar())
                 .toUriString();
+    }
+
+    private String texto(String valor) {
+        return valor == null ? "" : valor.trim();
     }
 
     private boolean vacio(String texto) {

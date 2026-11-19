@@ -145,8 +145,10 @@ mvn test
 |---|---|---|---|
 | GET | `/api/usuarios?buscar=texto` | — | Lista (el filtro es opcional) |
 | GET | `/api/usuarios/{id}` | — | Usuario · 404 |
-| POST | `/api/usuarios` | `{"nombre","correo","contrasena","rut","equipo","rolId"}` | 201 usuario creado · 400 · 409 correo repetido |
+| POST | `/api/usuarios` | `{"nombre","correo","contrasena","rut","equipo","rolId","pregunta","respuesta"}` | 201 usuario creado · 400 · 409 correo repetido |
 | POST | `/api/usuarios/login` | `{"correo","contrasena"}` | 200 usuario · 401 credenciales incorrectas |
+| GET | `/api/usuarios/pregunta?correo=...` | — | La pregunta de recuperación de esa cuenta · 404 |
+| POST | `/api/usuarios/recuperar` | `{"correo","respuesta","nueva"}` | 204 · 401 si la respuesta no coincide · 404 |
 | PUT | `/api/usuarios/{id}` | `{"nombre","correo","rut","equipo","rolId"}` | 200 usuario · 404 · 409 |
 | PUT | `/api/usuarios/{id}/contrasena` | `{"actual","nueva"}` | 204 · 401 clave actual incorrecta |
 | DELETE | `/api/usuarios/{id}` | — | 204 · 404 (borra también su foto) |
@@ -154,6 +156,15 @@ mvn test
 | GET | `/api/usuarios/{id}/avatar` | — | La imagen JPEG (la URL completa viene en `avatarUrl`) · 404 si no tiene foto |
 
 El campo `equipo` vale `VEHICULOS` o `HOGAR` en los liquidadores, y viene vacío en los demás.
+
+### Recuperar la contraseña
+
+Al crear la cuenta se guardan `pregunta` y `respuesta`. Para recuperar el acceso, la app pide primero
+la pregunta con `GET /api/usuarios/pregunta` y después manda la respuesta junto con la contraseña
+nueva a `POST /api/usuarios/recuperar`.
+
+La respuesta se guarda y se compara en minúsculas y sin espacios sobrantes, para que no falle por
+cómo la escribió el usuario. Nunca se devuelve en ninguna respuesta.
 
 Respuesta de un usuario (nunca incluye la contraseña):
 
@@ -198,6 +209,7 @@ El `codigo` se arma desde el nombre: `Seguros Cordillera` queda como `SEGUROS_CO
 | GET | `/api/siniestros?aseguradoId={id}` | — | Los casos de ese asegurado |
 | GET | `/api/siniestros?liquidadorId={id}` | — | Los casos de ese liquidador |
 | GET | `/api/siniestros?sinAsignar=true` | — | Los casos recibidos sin liquidador |
+| GET | `/api/siniestros/carga` | — | Casos abiertos y cerrados por liquidador |
 | GET | `/api/siniestros/{id}` | — | Un caso · 404 |
 | POST | `/api/siniestros` | `{"aseguradoId","companiaCodigo","tipoCodigo","fechaOcurrencia","comuna","descripcion","huboTerceros"}` | 201 · 400 |
 | PUT | `/api/siniestros/{id}/asignar` | `{"liquidadorId"}` | 200 · 400 si el área no corresponde |

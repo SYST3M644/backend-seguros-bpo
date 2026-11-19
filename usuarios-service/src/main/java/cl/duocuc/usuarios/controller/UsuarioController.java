@@ -3,6 +3,8 @@ package cl.duocuc.usuarios.controller;
 import cl.duocuc.usuarios.dto.ActualizarUsuarioRequest;
 import cl.duocuc.usuarios.dto.CambiarContrasenaRequest;
 import cl.duocuc.usuarios.dto.LoginRequest;
+import cl.duocuc.usuarios.dto.PreguntaResponse;
+import cl.duocuc.usuarios.dto.RecuperarRequest;
 import cl.duocuc.usuarios.dto.RegistroRequest;
 import cl.duocuc.usuarios.dto.UsuarioResponse;
 import cl.duocuc.usuarios.service.UsuarioService;
@@ -45,6 +47,17 @@ public class UsuarioController {
     @ResponseStatus(HttpStatus.CREATED)
     public UsuarioResponse registrar(@RequestBody RegistroRequest datos) {
         return usuarioService.registrar(datos);
+    }
+
+    @GetMapping("/pregunta")
+    public PreguntaResponse pregunta(@RequestParam String correo) {
+        return usuarioService.preguntaDe(correo);
+    }
+
+    @PostMapping("/recuperar")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void recuperar(@RequestBody RecuperarRequest datos) {
+        usuarioService.recuperar(datos);
     }
 
     @PostMapping("/login")

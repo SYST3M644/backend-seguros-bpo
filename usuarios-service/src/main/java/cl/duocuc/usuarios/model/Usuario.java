@@ -32,4 +32,10 @@ public class Usuario {
 
     @Field("avatar")
     private String avatar;
+
+    @Field("pregunta")
+    private String pregunta;
+
+    @Field("respuesta")
+    private String respuesta;
 }
