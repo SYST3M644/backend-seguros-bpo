@@ -1,6 +1,7 @@
 package cl.duocuc.siniestros.controller;
 
 import cl.duocuc.siniestros.dto.AsignarRequest;
+import cl.duocuc.siniestros.dto.CargaLiquidadorResponse;
 import cl.duocuc.siniestros.dto.AvanzarRequest;
 import cl.duocuc.siniestros.dto.GestionRequest;
 import cl.duocuc.siniestros.dto.RegistrarSiniestroRequest;
@@ -43,6 +44,11 @@ public class SiniestroController {
             return siniestroService.listarPorLiquidador(liquidadorId);
         }
         return List.of();
+    }
+
+    @GetMapping("/carga")
+    public List<CargaLiquidadorResponse> carga() {
+        return siniestroService.carga();
     }
 
     @GetMapping("/{id}")

@@ -3,6 +3,7 @@ package cl.duocuc.siniestros.service;
 import cl.duocuc.siniestros.client.CatalogoClient;
 import cl.duocuc.siniestros.client.UsuarioClient;
 import cl.duocuc.siniestros.dto.AsignarRequest;
+import cl.duocuc.siniestros.dto.CargaLiquidadorResponse;
 import cl.duocuc.siniestros.dto.AvanzarRequest;
 import cl.duocuc.siniestros.dto.CompaniaDto;
 import cl.duocuc.siniestros.dto.GestionRequest;
@@ -22,7 +23,10 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -52,6 +56,28 @@ public class SiniestroService {
     public List<SiniestroResponse> listarSinAsignar() {
         return siniestroRepository.findByLiquidadorIdIsNullAndEtapaOrderByIdAsc("RECIBIDO").stream()
                 .map(this::aRespuesta)
+                .toList();
+    }
+
+    public List<CargaLiquidadorResponse> carga() {
+        Map<String, List<Siniestro>> porLiquidador = siniestroRepository.findAll().stream()
+                .filter(caso -> caso.getLiquidadorId() != null)
+                .collect(Collectors.groupingBy(Siniestro::getLiquidadorId));
+
+        return porLiquidador.entrySet().stream()
+                .map(entrada -> {
+                    UsuarioDto liquidador = usuarioClient.obtener(entrada.getKey());
+                    long cerrados = entrada.getValue().stream()
+                            .filter(caso -> "CERRADO".equals(caso.getEtapa()))
+                            .count();
+                    return new CargaLiquidadorResponse(
+                            entrada.getKey(),
+                            liquidador != null ? liquidador.nombre() : "",
+                            liquidador != null ? liquidador.equipo() : "",
+                            entrada.getValue().size() - cerrados,
+                            cerrados);
+                })
+                .sorted(Comparator.comparing(CargaLiquidadorResponse::liquidadorNombre))
                 .toList();
     }
 
