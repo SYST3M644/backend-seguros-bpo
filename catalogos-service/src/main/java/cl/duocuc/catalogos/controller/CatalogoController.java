@@ -4,7 +4,10 @@ import cl.duocuc.catalogos.dto.CompaniaRequest;
 import cl.duocuc.catalogos.dto.TipoSiniestroRequest;
 import cl.duocuc.catalogos.dto.TipoSiniestroResponse;
 import cl.duocuc.catalogos.model.Compania;
+import cl.duocuc.catalogos.model.Comuna;
+import cl.duocuc.catalogos.model.Region;
 import cl.duocuc.catalogos.service.CatalogoService;
+import cl.duocuc.catalogos.service.GeografiaService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,6 +26,17 @@ import java.util.List;
 public class CatalogoController {
 
     private final CatalogoService catalogoService;
+    private final GeografiaService geografiaService;
+
+    @GetMapping("/regiones")
+    public List<Region> listarRegiones() {
+        return geografiaService.listarRegiones();
+    }
+
+    @GetMapping("/regiones/{codigo}/comunas")
+    public List<Comuna> listarComunas(@PathVariable String codigo) {
+        return geografiaService.listarComunas(codigo);
+    }
 
     @GetMapping("/companias")
     public List<Compania> listarCompanias() {
