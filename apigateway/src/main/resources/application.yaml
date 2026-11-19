@@ -1,7 +1,13 @@
 server:
   port: 6464
 
+app:
+  jwt:
+    secreto: ${JWT_SECRET}
+
 spring:
+  config:
+    import: optional:file:../.env[.properties]
   application:
     name: api-gateway
   cloud:

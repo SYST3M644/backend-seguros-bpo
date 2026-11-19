@@ -12,6 +12,8 @@ public interface UsuarioRepository extends MongoRepository<Usuario, String> {
 
     List<Usuario> findByNombreContainingIgnoreCaseOrCorreoContainingIgnoreCaseOrderByNombreAsc(String nombre, String correo);
 
+    List<Usuario> findByRolIdAndEstadoOrderByNombreAsc(String rolId, String estado);
+
     Optional<Usuario> findByCorreo(String correo);
 
     boolean existsByCorreo(String correo);

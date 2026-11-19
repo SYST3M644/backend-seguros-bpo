@@ -30,6 +30,12 @@ public class Usuario {
     @Field("rol_id")
     private String rolId;
 
+    @Field("direccion")
+    private String direccion;
+
+    @Field("estado")
+    private String estado;
+
     @Field("avatar")
     private String avatar;
 

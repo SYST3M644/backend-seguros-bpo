@@ -5,6 +5,7 @@ public record RegistroRequest(
         String correo,
         String contrasena,
         String rut,
+        String direccion,
         String equipo,
         String rolId,
         String pregunta,

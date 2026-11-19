@@ -9,11 +9,6 @@
       "name": "usuarios.service.url",
       "type": "java.lang.String",
       "description": "Direccion base del servicio de usuarios."
-    },
-    {
-      "name": "app.evidencias.carpeta",
-      "type": "java.lang.String",
-      "description": "Carpeta donde se guardan los archivos de evidencia."
     }
   ]
 }

@@ -1,8 +1,10 @@
 package cl.duocuc.siniestros.service;
 
 import cl.duocuc.siniestros.dto.EvidenciaResponse;
+import cl.duocuc.siniestros.model.ArchivoEvidencia;
 import cl.duocuc.siniestros.model.Evidencia;
 import cl.duocuc.siniestros.model.Siniestro;
+import cl.duocuc.siniestros.repository.ArchivoEvidenciaRepository;
 import cl.duocuc.siniestros.repository.EvidenciaRepository;
 import cl.duocuc.siniestros.repository.SiniestroRepository;
 import cl.duocuc.siniestros.repository.SolicitudRepository;
@@ -16,6 +18,7 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -26,7 +29,8 @@ public class EvidenciaService {
 
     private final EvidenciaRepository evidenciaRepository;
     private final SiniestroRepository siniestroRepository;
-    private final AlmacenamientoService almacenamiento;
+    private final ArchivoService archivoService;
+    private final ArchivoEvidenciaRepository archivoEvidenciaRepository;
     private final SolicitudRepository solicitudRepository;
     private final AvisoService avisoService;
 
@@ -57,10 +61,10 @@ public class EvidenciaService {
     }
 
     public byte[] leerArchivo(String id) {
-        Evidencia evidencia = evidenciaRepository.findById(id)
+        return archivoEvidenciaRepository.findById(id)
+                .map(ArchivoEvidencia::getContenido)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "La evidencia no existe"));
-        return almacenamiento.leer(evidencia.getNombreArchivo());
     }
 
     public String mimeDe(String id) {
@@ -82,7 +86,9 @@ public class EvidenciaService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "El siniestro ya tiene " + MAXIMO_POR_CASO + " archivos");
         }
-        String nombre = almacenamiento.guardar(archivo);
+        byte[] contenido = archivoService.leer(archivo);
+        String nombre = UUID.randomUUID() + archivoService.extensionDe(archivo.getContentType());
+
         Evidencia evidencia = new Evidencia();
         evidencia.setSiniestroId(siniestroId);
         evidencia.setTipoDocumento(tipo);
@@ -91,16 +97,23 @@ public class EvidenciaService {
         evidencia.setTamanoBytes((int) archivo.getSize());
         evidencia.setFechaRegistro(LocalDateTime.now().format(FECHA_HORA));
         evidencia.setSubidoPor(subidoPor == null || subidoPor.isBlank() ? "Asegurado" : subidoPor.trim());
-        EvidenciaResponse guardada = aRespuesta(evidenciaRepository.save(evidencia));
+        Evidencia registrada = evidenciaRepository.save(evidencia);
+
+        ArchivoEvidencia guardado = new ArchivoEvidencia();
+        guardado.setId(registrada.getId());
+        guardado.setContenido(contenido);
+        archivoEvidenciaRepository.save(guardado);
+
+        EvidenciaResponse respuesta = aRespuesta(registrada);
         avisarAlLiquidador(siniestroId, tipo);
-        return guardada;
+        return respuesta;
     }
 
     public void eliminar(String id) {
         Evidencia evidencia = evidenciaRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "La evidencia no existe"));
-        almacenamiento.eliminar(evidencia.getNombreArchivo());
+        archivoEvidenciaRepository.deleteById(evidencia.getId());
         evidenciaRepository.delete(evidencia);
     }
 

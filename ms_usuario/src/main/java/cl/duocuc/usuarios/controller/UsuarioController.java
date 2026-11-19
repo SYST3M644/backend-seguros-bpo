@@ -3,6 +3,7 @@ package cl.duocuc.usuarios.controller;
 import cl.duocuc.usuarios.dto.ActualizarUsuarioRequest;
 import cl.duocuc.usuarios.dto.CambiarContrasenaRequest;
 import cl.duocuc.usuarios.dto.LoginRequest;
+import cl.duocuc.usuarios.dto.LoginResponse;
 import cl.duocuc.usuarios.dto.PreguntaResponse;
 import cl.duocuc.usuarios.dto.RecuperarRequest;
 import cl.duocuc.usuarios.dto.RegistroRequest;
@@ -61,7 +62,7 @@ public class UsuarioController {
     }
 
     @PostMapping("/login")
-    public UsuarioResponse iniciarSesion(@RequestBody LoginRequest datos) {
+    public LoginResponse iniciarSesion(@RequestBody LoginRequest datos) {
         return usuarioService.iniciarSesion(datos);
     }
 
@@ -74,6 +75,21 @@ public class UsuarioController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void cambiarContrasena(@PathVariable String id, @RequestBody CambiarContrasenaRequest datos) {
         usuarioService.cambiarContrasena(id, datos);
+    }
+
+    @GetMapping("/pendientes")
+    public List<UsuarioResponse> pendientes() {
+        return usuarioService.pendientes();
+    }
+
+    @PutMapping("/{id}/aprobar")
+    public UsuarioResponse aprobar(@PathVariable String id) {
+        return usuarioService.aprobar(id);
+    }
+
+    @PutMapping("/{id}/rechazar")
+    public UsuarioResponse rechazar(@PathVariable String id) {
+        return usuarioService.rechazar(id);
     }
 
     @PostMapping(value = "/{id}/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

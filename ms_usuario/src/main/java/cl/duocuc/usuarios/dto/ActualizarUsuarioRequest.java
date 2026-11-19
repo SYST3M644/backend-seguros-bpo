@@ -4,6 +4,7 @@ public record ActualizarUsuarioRequest(
         String nombre,
         String correo,
         String rut,
+        String direccion,
         String equipo,
         String rolId
 ) {

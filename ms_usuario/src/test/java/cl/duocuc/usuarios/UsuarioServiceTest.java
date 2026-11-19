@@ -6,7 +6,9 @@ import cl.duocuc.usuarios.dto.RolDto;
 import cl.duocuc.usuarios.dto.UsuarioResponse;
 import cl.duocuc.usuarios.model.Usuario;
 import cl.duocuc.usuarios.repository.UsuarioRepository;
-import cl.duocuc.usuarios.service.AlmacenamientoService;
+import cl.duocuc.usuarios.repository.AvatarRepository;
+import cl.duocuc.usuarios.service.ImagenService;
+import cl.duocuc.usuarios.service.TokenService;
 import cl.duocuc.usuarios.service.UsuarioService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,7 +34,9 @@ class UsuarioServiceTest {
     void preparar() {
         repositorio = mock(UsuarioRepository.class);
         rolClient = mock(RolClient.class);
-        servicio = new UsuarioService(repositorio, rolClient, mock(AlmacenamientoService.class));
+        servicio = new UsuarioService(
+                repositorio, rolClient, mock(ImagenService.class),
+                mock(AvatarRepository.class), mock(TokenService.class));
         when(rolClient.obtener(anyString())).thenReturn(new RolDto("1", "Asegurado"));
     }
 
@@ -48,11 +52,69 @@ class UsuarioServiceTest {
     }
 
     @Test
+    void iniciarSesion_conCuentaPendiente_lanza403() {
+        Usuario pendiente = camila();
+        pendiente.setEstado("PENDIENTE");
+        when(repositorio.findByCorreo("crojas@correo.cl")).thenReturn(Optional.of(pendiente));
+
+        ResponseStatusException error = assertThrows(ResponseStatusException.class,
+                () -> servicio.iniciarSesion(new LoginRequest("crojas@correo.cl", "123456")));
+
+        assertEquals(403, error.getStatusCode().value());
+    }
+
+    @Test
+    void iniciarSesion_conCuentaRechazada_lanza403() {
+        Usuario rechazada = camila();
+        rechazada.setEstado("RECHAZADO");
+        when(repositorio.findByCorreo("crojas@correo.cl")).thenReturn(Optional.of(rechazada));
+
+        assertThrows(ResponseStatusException.class,
+                () -> servicio.iniciarSesion(new LoginRequest("crojas@correo.cl", "123456")));
+    }
+
+    @Test
+    void iniciarSesion_conCuentaViejaSinEstado_sigueEntrando() {
+        Usuario sinEstado = camila();
+        sinEstado.setEstado(null);
+        when(repositorio.findByCorreo("crojas@correo.cl")).thenReturn(Optional.of(sinEstado));
+
+        UsuarioResponse usuario = servicio.iniciarSesion(
+                new LoginRequest("crojas@correo.cl", "123456")).usuario();
+
+        assertEquals("APROBADO", usuario.estado());
+    }
+
+    @Test
+    void aprobar_dejaAlAseguradoEntrar() {
+        Usuario pendiente = camila();
+        pendiente.setEstado("PENDIENTE");
+        when(repositorio.findById("1")).thenReturn(Optional.of(pendiente));
+        when(repositorio.save(pendiente)).thenReturn(pendiente);
+
+        UsuarioResponse aprobado = servicio.aprobar("1");
+
+        assertEquals("APROBADO", aprobado.estado());
+    }
+
+    @Test
+    void aprobar_aQuienNoEsAsegurado_lanza400() {
+        Usuario liquidador = camila();
+        liquidador.setRolId("2");
+        when(repositorio.findById("1")).thenReturn(Optional.of(liquidador));
+
+        ResponseStatusException error = assertThrows(ResponseStatusException.class,
+                () -> servicio.aprobar("1"));
+
+        assertEquals(400, error.getStatusCode().value());
+    }
+
+    @Test
     void iniciarSesion_conCredencialesCorrectas_devuelveElUsuario() {
         when(repositorio.findByCorreo("crojas@correo.cl")).thenReturn(Optional.of(camila()));
 
         UsuarioResponse usuario = servicio.iniciarSesion(
-                new LoginRequest("crojas@correo.cl", "123456"));
+                new LoginRequest("crojas@correo.cl", "123456")).usuario();
 
         assertEquals("Camila Rojas Fuentes", usuario.nombre());
         assertEquals("15.842.371-5", usuario.rut());
@@ -64,7 +126,7 @@ class UsuarioServiceTest {
         when(rolClient.obtener("1")).thenReturn(new RolDto("1", "Asegurado"));
 
         UsuarioResponse usuario = servicio.iniciarSesion(
-                new LoginRequest("crojas@correo.cl", "123456"));
+                new LoginRequest("crojas@correo.cl", "123456")).usuario();
 
         assertEquals("Asegurado", usuario.rolNombre());
     }

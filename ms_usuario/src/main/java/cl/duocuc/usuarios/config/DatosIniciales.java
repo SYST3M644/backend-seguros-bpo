@@ -59,6 +59,7 @@ public class DatosIniciales implements CommandLineRunner {
         usuario.setRut(rut);
         usuario.setEquipo(equipo);
         usuario.setRolId(rolId);
+        usuario.setEstado("APROBADO");
         return usuario;
     }
 }

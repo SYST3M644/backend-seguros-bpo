@@ -4,12 +4,15 @@ import cl.duocuc.usuarios.client.RolClient;
 import cl.duocuc.usuarios.dto.ActualizarUsuarioRequest;
 import cl.duocuc.usuarios.dto.CambiarContrasenaRequest;
 import cl.duocuc.usuarios.dto.LoginRequest;
+import cl.duocuc.usuarios.dto.LoginResponse;
 import cl.duocuc.usuarios.dto.PreguntaResponse;
 import cl.duocuc.usuarios.dto.RecuperarRequest;
 import cl.duocuc.usuarios.dto.RegistroRequest;
 import cl.duocuc.usuarios.dto.RolDto;
 import cl.duocuc.usuarios.dto.UsuarioResponse;
 import cl.duocuc.usuarios.model.Usuario;
+import cl.duocuc.usuarios.model.Avatar;
+import cl.duocuc.usuarios.repository.AvatarRepository;
 import cl.duocuc.usuarios.repository.UsuarioRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -19,6 +22,7 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.util.List;
+import java.util.UUID;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -27,10 +31,15 @@ import java.util.stream.Collectors;
 public class UsuarioService {
 
     private static final String ROL_ASEGURADO = "1";
+    private static final String PENDIENTE = "PENDIENTE";
+    private static final String APROBADO = "APROBADO";
+    private static final String RECHAZADO = "RECHAZADO";
 
     private final UsuarioRepository usuarioRepository;
     private final RolClient rolClient;
-    private final AlmacenamientoService almacenamientoService;
+    private final ImagenService imagenService;
+    private final AvatarRepository avatarRepository;
+    private final TokenService tokenService;
 
     public List<UsuarioResponse> listar(String buscar) {
         List<Usuario> usuarios = (buscar == null || buscar.isBlank())
@@ -68,10 +77,12 @@ public class UsuarioService {
         nuevo.setCorreo(datos.correo());
         nuevo.setContrasena(datos.contrasena());
         nuevo.setRut(datos.rut() == null ? "" : datos.rut().trim());
+        nuevo.setDireccion(texto(datos.direccion()));
         nuevo.setEquipo(datos.equipo());
         nuevo.setRolId(rolId);
         nuevo.setPregunta(texto(datos.pregunta()));
         nuevo.setRespuesta(normalizar(datos.respuesta()));
+        nuevo.setEstado(ROL_ASEGURADO.equals(rolId) ? PENDIENTE : APROBADO);
         return aRespuesta(usuarioRepository.save(nuevo));
     }
 
@@ -107,11 +118,20 @@ public class UsuarioService {
         return texto(valor).toLowerCase();
     }
 
-    public UsuarioResponse iniciarSesion(LoginRequest datos) {
+    public LoginResponse iniciarSesion(LoginRequest datos) {
         Usuario usuario = usuarioRepository.findByCorreo(datos.correo())
                 .filter(u -> u.getContrasena().equals(datos.contrasena()))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Correo o contraseña incorrectos"));
-        return aRespuesta(usuario);
+
+        if (PENDIENTE.equals(usuario.getEstado())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Tu cuenta todavía no está aprobada por el analista");
+        }
+        if (RECHAZADO.equals(usuario.getEstado())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "El analista rechazó esta cuenta");
+        }
+        return new LoginResponse(aRespuesta(usuario), tokenService.generar(usuario));
     }
 
     public UsuarioResponse actualizar(String id, ActualizarUsuarioRequest datos) {
@@ -149,29 +169,53 @@ public class UsuarioService {
         usuarioRepository.save(usuario);
     }
 
+    public List<UsuarioResponse> pendientes() {
+        return usuarioRepository.findByRolIdAndEstadoOrderByNombreAsc(ROL_ASEGURADO, PENDIENTE)
+                .stream()
+                .map(this::aRespuesta)
+                .toList();
+    }
+
+    public UsuarioResponse aprobar(String id) {
+        return cambiarEstado(id, APROBADO);
+    }
+
+    public UsuarioResponse rechazar(String id) {
+        return cambiarEstado(id, RECHAZADO);
+    }
+
+    private UsuarioResponse cambiarEstado(String id, String estado) {
+        Usuario usuario = buscar(id);
+        if (!ROL_ASEGURADO.equals(usuario.getRolId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Solo se aprueban cuentas de asegurado");
+        }
+        usuario.setEstado(estado);
+        return aRespuesta(usuarioRepository.save(usuario));
+    }
+
     public UsuarioResponse subirAvatar(String id, MultipartFile archivo) {
         Usuario usuario = buscar(id);
-        String anterior = usuario.getAvatar();
 
-        usuario.setAvatar(almacenamientoService.guardar(archivo));
-        Usuario guardado = usuarioRepository.save(usuario);
+        Avatar imagen = new Avatar();
+        imagen.setId(usuario.getId());
+        imagen.setContenido(imagenService.leer(archivo));
+        avatarRepository.save(imagen);
 
-        almacenamientoService.eliminar(anterior);
-        return aRespuesta(guardado);
+        usuario.setAvatar(UUID.randomUUID().toString());
+        return aRespuesta(usuarioRepository.save(usuario));
     }
 
     public byte[] obtenerAvatar(String id) {
-        Usuario usuario = buscar(id);
-        if (usuario.getAvatar() == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "El usuario no tiene foto");
-        }
-        return almacenamientoService.leer(usuario.getAvatar());
+        return avatarRepository.findById(buscar(id).getId())
+                .map(Avatar::getContenido)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "El usuario no tiene foto"));
     }
 
     public void eliminar(String id) {
-        Usuario usuario = buscar(id);
-        usuarioRepository.delete(usuario);
-        almacenamientoService.eliminar(usuario.getAvatar());
+        usuarioRepository.delete(buscar(id));
+        avatarRepository.deleteById(id);
     }
 
     private Usuario buscar(String id) {
@@ -196,9 +240,11 @@ public class UsuarioService {
                 usuario.getNombre(),
                 usuario.getCorreo(),
                 usuario.getRut(),
+                usuario.getDireccion(),
                 usuario.getEquipo(),
                 usuario.getRolId(),
                 rolNombre,
+                usuario.getEstado() == null ? APROBADO : usuario.getEstado(),
                 urlAvatar(usuario)
         );
     }
